@@ -1,10 +1,11 @@
 <?php
 //include 'db.php';
 
-//MAIN CREVA API CLASS
+//MAIN API CLASS
 class invCoreAPI{
 	
 	var $skey 	= "SuPerEncKey2010"; // you can change it
+	var $cipher = "aes-128-gcm";
 	
 	public function generateRandomString($length = 43) {
     $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -36,25 +37,24 @@ class invCoreAPI{
         return base64_decode($data);
     }
 	
-    public  function encode($value){ 
-		
-	    if(!$value){return false;}
-        $text = $value;
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-        $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-        $crypttext = mcrypt_encrypt(MCRYPT_RIJNDAEL_256, $this->skey, $text, MCRYPT_MODE_ECB, $iv);
-        return trim($this->safe_b64encode($crypttext)); 
-    }
+	function encode($data) {
+		// Remove the base64 encoding from our key
+		$encryption_key = base64_decode($this->skey);
+		// Generate an initialization vector
+		$iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+		// Encrypt the data using AES 256 encryption in CBC mode using our encryption key and initialization vector.
+		$encrypted = openssl_encrypt($data, 'aes-256-cbc', $encryption_key, 0, $iv);
+		// The $iv is just as important as the key for decrypting, so save it with our encrypted data using a unique separator (::)
+		return base64_encode($encrypted . '::' . $iv);
+	}
     
-    public function decode($value){
-		
-        if(!$value){return false;}
-        $crypttext = $this->safe_b64decode($value); 
-        $iv_size = mcrypt_get_iv_size(MCRYPT_RIJNDAEL_256, MCRYPT_MODE_ECB);
-        $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
-        $decrypttext = mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $this->skey, $crypttext, MCRYPT_MODE_ECB, $iv);
-        return trim($decrypttext);
-    }
+	function decode($data) {
+		// Remove the base64 encoding from our key
+		$encryption_key = base64_decode($this->skey);
+		// To decrypt, split the encrypted data from our IV - our unique separator used was "::"
+		list($encrypted_data, $iv) = explode('::', base64_decode($data), 2);
+		return openssl_decrypt($encrypted_data, 'aes-256-cbc', $encryption_key, 0, $iv);
+	}
 	
 	public function server_public_key($pk)
 	{
@@ -150,8 +150,6 @@ class invCoreAPI{
 		} catch(PDOException $e) {		
 		echo '{"error":{"text":'. $e->getMessage() .'}}'; 
 		}
-		
-
 	}
 	
 	public function token()
@@ -184,11 +182,14 @@ class invCoreAPI{
 	
 }
 
-$creva = new invCoreAPI();
+$core = new invCoreAPI();
 //echo $creva->request_token();
 
-
+echo $p = $core->encode("123123123");
+echo "<br />";
+echo $core->decode($p);
 /**
+echo ($creva->public_key("1"));
 echo $g1 = ($creva->public_key());
 echo "<br />";
 echo $g2 = ($creva->private_key());
@@ -209,6 +210,7 @@ echo "<br />";
 echo ($creva->decode_server_private_key($t2));
 echo "<br />";
 echo "<br />";
-echo ($creva->generateToken());
 **/
+//echo ($creva->generateToken());
+
 ?>
